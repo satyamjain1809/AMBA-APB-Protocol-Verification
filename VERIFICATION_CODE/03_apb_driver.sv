@@ -1,5 +1,3 @@
-
-
 // ============================================================
 // DRIVER
 // Converts transactions into APB pin-level activity.
