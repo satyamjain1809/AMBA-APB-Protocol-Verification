@@ -56,8 +56,6 @@ III. ACCESS
 - **Driver** – Drives APB transactions onto the interface according to the APB protocol.
 - **Monitor** – Observes APB interface signals and captures transactions for checking.
 - **Scoreboard** – Compares expected and actual results to verify correct DUT behavior.
-- **Functional Coverage** – Measures coverage of different APB operations and scenarios.
-- **Assertions** – Checks important APB protocol conditions during simulation.
 
 # ACTUAL TRANSFER WAVEFORMS #
 
