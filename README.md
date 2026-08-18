@@ -49,6 +49,51 @@ III. ACCESS
 * If **PREADY = 0**, the bus stays in ACCESS and waits  
  → **"Execute the transfer".**
 
+# Verification Environment #
 
+- **Transaction** – Defines APB transactions and provides randomization, display, and copy functionality.
+- **Generator** – Generates randomized APB transactions and sends them to the driver.
+- **Driver** – Drives APB transactions onto the interface according to the APB protocol.
+- **Monitor** – Observes APB interface signals and captures transactions for checking.
+- **Scoreboard** – Compares expected and actual results to verify correct DUT behavior.
+- **Functional Coverage** – Measures coverage of different APB operations and scenarios.
+- **Assertions** – Checks important APB protocol conditions during simulation.
+
+# ACTUAL TRANSFER WAVEFORMS #
+
+# WRITE TRANSFERS #
+
+# WITHOUT WAIT STATE
+ <img width="903" height="652" alt="Screenshot 2026-08-18 144139" src="https://github.com/user-attachments/assets/c4ef4d18-8955-432a-84a8-381669e22ba1" />
+
+
+# WITH WAIT STATE
+ <img width="1600" height="1410" alt="image" src="https://github.com/user-attachments/assets/d68fd916-d6d9-4523-9e8f-30bffb1d9ef0" />
+
+# READ TRANSFERS #
+
+# WITHOUT WAIT STATE
+<img width="1599" height="1360" alt="image" src="https://github.com/user-attachments/assets/c7178113-cf01-463f-b509-c14c4b175056" />
+
+# WITH WAIT STATE
+<img width="1600" height="1357" alt="image" src="https://github.com/user-attachments/assets/df1223ce-5364-43cf-9f19-1f97c7ae6e18" />
+
+## Simulation Tool
+
+The verification environment was simulated using **QuestaSim** to validate the APB RAM design and verify read, write, and error transactions.
+
+## Tools Used
+
+- SystemVerilog
+- QuestaSim
+- AMBA APB Protocol
+
+## Author
+
+**Satyam Jain**  
+Electronics & Instrumentation Engineering  
+IET DAVV, Indore
+
+[LinkedIn](https://www.linkedin.com/in/satyam-jain-1b7b54216/) | [GitHub](https://github.com/satyamjain1809)
 
 
