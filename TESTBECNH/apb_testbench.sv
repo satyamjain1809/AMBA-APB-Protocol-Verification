@@ -52,11 +52,12 @@ module tb;
 
 
    // Generate waveform dump for simulation analysis.
-   initial begin
+   // WRITE THIS IF USING ONLINE COMPILER
+   // initial begin 
 
-     $dumpfile("dump.vcd");
-     $dumpvars;
+   //   $dumpfile("dump.vcd");
+   //   $dumpvars;
 
-   end
+   // end
 
 endmodule
