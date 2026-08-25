@@ -22,75 +22,62 @@ class scoreboard;
 
    int index;
 
-
    // Constructor.
    function new(mailbox #(transaction) mbx);
       this.mbx = mbx;
-   endfunction;
-
+   endfunction
 
    // Continuously receives transactions and checks them.
    task run();
 
-     forever begin
+      forever begin
 
-       // Get monitored transaction.
-       mbx.get(tr);
+         // Get monitored transaction.
+         mbx.get(tr);
 
-       $display("[SCO] : DATA RCVD wdata:%0d rdata:%0d addr:%0d write:%0b",
-                tr.pwdata, tr.prdata, tr.paddr, tr.pwrite);
+         $display("[SCO] : DATA RCVD wdata:%0d rdata:%0d addr:%0d write:%0b",
+                  tr.pwdata, tr.prdata, tr.paddr, tr.pwrite);
 
+         // Check successful write.
+         if((tr.pwrite == 1'b1) && (tr.pslverr == 1'b0))
+         begin
 
-       // ------------------------------------------------------
-       // SUCCESSFUL WRITE
-       // ------------------------------------------------------
-       if((tr.pwrite == 1'b1) && (tr.pslverr == 1'b0))
-       begin
+            // Store write data in reference memory.
+            pwdata[tr.paddr] = tr.pwdata;
 
-         // Store write data in reference memory.
-         pwdata[tr.paddr] = tr.pwdata;
+            $display("[SCO] : DATA STORED DATA : %0d ADDR: %0d",
+                     tr.pwdata, tr.paddr);
 
-         $display("[SCO] : DATA STORED DATA : %0d ADDR: %0d",
-                  tr.pwdata, tr.paddr);
+         end
 
-       end
+         // Check successful read.
+         else if((tr.pwrite == 1'b0) && (tr.pslverr == 1'b0))
+         begin
 
+            // Get expected data from reference memory.
+            rdata = pwdata[tr.paddr];
 
-       // ------------------------------------------------------
-       // SUCCESSFUL READ
-       // ------------------------------------------------------
-       else if((tr.pwrite == 1'b0) && (tr.pslverr == 1'b0))
-       begin
+            // Compare DUT read data with expected data.
+            if(tr.prdata == rdata)
+               $display("[SCO] : Data Matched");
+            else
+               $display("[SCO] : Data Mismatched");
 
-         // Get expected data from reference memory.
-         rdata = pwdata[tr.paddr];
+         end
 
-         // Compare DUT read data with expected data.
-         if(tr.prdata == rdata)
-           $display("[SCO] : Data Matched");
-         else
-           $display("[SCO] : Data Mismatched");
+         // Check slave error.
+         else if(tr.pslverr == 1'b1)
+         begin
 
-       end
+            // Report detected APB slave error.
+            $display("[SCO] : SLV ERROR DETECTED");
 
+         end
 
-       // ------------------------------------------------------
-       // SLAVE ERROR
-       // ------------------------------------------------------
-       else if(tr.pslverr == 1'b1)
-       begin
+         // Notify generator that scoreboard completed checking.
+         ->nextsco;
 
-         // Report detected APB slave error.
-         $display("[SCO] : SLV ERROR DETECTED");
-
-       end
-
-
-       // Notify generator that scoreboard completed checking.
-       ->nextsco;
-
-     end
+      end
 
    endtask
-
 endclass
