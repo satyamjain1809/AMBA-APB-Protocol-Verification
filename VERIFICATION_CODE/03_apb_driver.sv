@@ -1,4 +1,3 @@
-```systemverilog
 // ============================================================
 // DRIVER
 // Converts transaction-level information into APB pin-level activity.
