@@ -5,100 +5,88 @@
 // ============================================================
 class environment;
 
-     // Verification components.
-     generator gen;
-     driver drv;
-     monitor mon;
-     scoreboard sco;
+   // Verification components.
+   generator gen;
+   driver drv;
+   monitor mon;
+   scoreboard sco;
 
+   // Synchronization events.
+   event nextgd;
+   event nextgs;
 
-     // Synchronization events.
-     event nextgd;  // Generator -> Driver
-     event nextgs;  // Generator -> Scoreboard
+   // Mailbox between generator and driver.
+   mailbox #(transaction) gdmbx;
 
+   // Mailbox between monitor and scoreboard.
+   mailbox #(transaction) msmbx;
 
-     // Mailbox between generator and driver.
-     mailbox #(transaction) gdmbx;
+   // Virtual APB interface.
+   virtual abp_if vif;
 
-     // Mailbox between monitor and scoreboard.
-     mailbox #(transaction) msmbx;
+   // Constructor.
+   function new(virtual abp_if vif);
 
+      // Create generator-driver mailbox.
+      gdmbx = new();
 
-     // Virtual APB interface.
-     virtual abp_if vif;
+      // Create generator and driver.
+      gen = new(gdmbx);
+      drv = new(gdmbx);
 
+      // Create monitor-scoreboard mailbox.
+      msmbx = new();
 
-     // Constructor.
-     function new(virtual abp_if vif);
+      // Create monitor and scoreboard.
+      mon = new(msmbx);
+      sco = new(msmbx);
 
-       // Create generator-driver mailbox.
-       gdmbx = new();
+      // Connect virtual interface.
+      this.vif = vif;
+      drv.vif = this.vif;
+      mon.vif = this.vif;
 
-       // Create generator and driver.
-       gen = new(gdmbx);
-       drv = new(gdmbx);
+      // Connect synchronization events.
+      gen.nextsco = nextgs;
+      sco.nextsco = nextgs;
 
+      gen.nextdrv = nextgd;
+      drv.nextdrv = nextgd;
 
-       // Create monitor-scoreboard mailbox.
-       msmbx = new();
+   endfunction
 
-       // Create monitor and scoreboard.
-       mon = new(msmbx);
-       sco = new(msmbx);
+   // Perform reset before the test.
+   task pre_test();
+      drv.reset();
+   endtask
 
+   // Start all verification components concurrently.
+   task test();
 
-       // Connect virtual interface.
-       this.vif = vif;
-       drv.vif = this.vif;
-       mon.vif = this.vif;
-
-
-       // Connect synchronization events.
-       gen.nextsco = nextgs;
-       sco.nextsco = nextgs;
-
-       gen.nextdrv = nextgd;
-       drv.nextdrv = nextgd;
-
-     endfunction
-
-
-     // Perform reset before the test.
-     task pre_test();
-       drv.reset();
-     endtask
-
-
-     // Start all verification components concurrently.
-     task test();
-
-       fork
+      fork
          gen.run();
          drv.run();
          mon.run();
          sco.run();
-       join_any
+      join_any
 
-     endtask
+   endtask
 
+   // Wait for generator completion and finish simulation.
+   task post_test();
 
-     // Wait for generator completion and finish simulation.
-     task post_test();
+      wait(gen.done.triggered);
+      $finish();
 
-       wait(gen.done.triggered);
+   endtask
 
-       $finish();
+   // Complete verification flow.
+   task run();
 
-     endtask
+      pre_test();
+      test();
+      post_test();
 
-
-     // Complete verification flow.
-     task run();
-
-       pre_test();
-       test();
-       post_test();
-
-     endtask
+   endtask
 
 endclass
