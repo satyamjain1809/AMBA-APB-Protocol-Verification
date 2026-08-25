@@ -1,205 +1,214 @@
+```systemverilog
 // ============================================================
 // DRIVER
-// Converts transactions into APB pin-level activity.
+// Converts transaction-level information into APB pin-level activity.
 // ============================================================
 class driver;
 
-   // Virtual interface used to drive APB signals.
+   // APB virtual interface
    virtual abp_if vif;
 
-   // Mailbox from which driver receives transactions.
+   // Generator to driver mailbox
    mailbox #(transaction) mbx;
 
-   // Transaction received from generator.
+   // Transaction received from generator
    transaction datac;
 
-   // Event used to notify generator that driver is done.
+   // Synchronization event
    event nextdrv;
 
-
-   // Constructor.
+   // Constructor
    function new(mailbox #(transaction) mbx);
       this.mbx = mbx;
-   endfunction;
+   endfunction
 
-
-   // ----------------------------------------------------------
-   // RESET TASK
-   // Drives reset values to the APB interface.
-   // ----------------------------------------------------------
+   // Reset task
    task reset();
+      // Drive reset values
+      vif.presetn <= 1'b0;
+      vif.psel    <= 1'b0;
+      vif.penable <= 1'b0;
+      vif.pwdata  <= 0;
+      vif.paddr   <= 0;
+      vif.pwrite  <= 1'b0;
 
-     vif.presetn <= 1'b0;
-     vif.psel    <= 1'b0;
-     vif.penable <= 1'b0;
-     vif.pwdata  <= 0;
-     vif.paddr   <= 0;
-     vif.pwrite  <= 1'b0;
+      // Keep reset active for 5 clock cycles
+      repeat(5) @(posedge vif.pclk);
 
-     // Keep reset active for 5 clock cycles.
-     repeat(5) @(posedge vif.pclk);
+      // Release reset
+      vif.presetn <= 1'b1;
 
-     // Release reset.
-     vif.presetn <= 1'b1;
+      repeat(5) @(posedge vif.pclk);
+      $display("[DRV] : RESET DONE");
+      
+   endtask
 
-     repeat(5) @(posedge vif.pclk);
+   // APB write transfer
+   task write_transfer();
 
-     $display("[DRV] : RESET DONE");
+      // SETUP phase
+      @(posedge vif.pclk);
+
+      vif.psel    <= 1'b1;
+      vif.penable <= 1'b0;
+      vif.paddr   <= datac.paddr;
+      vif.pwdata  <= datac.pwdata;
+      vif.pwrite  <= 1'b1;
+
+      // ACCESS phase
+      @(posedge vif.pclk);
+
+      vif.penable <= 1'b1;
+
+      // Wait until slave completes the transfer
+      while(!vif.pready)
+         @(posedge vif.pclk);
+
+      // Capture slave error response
+      datac.pslverr = vif.pslverr;
+
+      // Return to IDLE
+      @(posedge vif.pclk);
+
+      vif.psel    <= 1'b0;
+      vif.penable <= 1'b0;
+      vif.pwrite  <= 1'b0;
+
+      $display("[DRV] : WRITE | ADDR=%0d DATA=%0d PREADY=%0b PSLVERR=%0b",
+               datac.paddr, datac.pwdata, vif.pready, vif.pslverr);
 
    endtask
 
+   // APB read transfer
+   task read_transfer();
 
-   // ----------------------------------------------------------
-   // DRIVER RUN TASK
-   // Receives transactions and drives corresponding APB operations.
-   // ----------------------------------------------------------
+      // SETUP phase
+      @(posedge vif.pclk);
+
+      vif.psel    <= 1'b1;
+      vif.penable <= 1'b0;
+      vif.paddr   <= datac.paddr;
+      vif.pwdata  <= 32'd0;
+      vif.pwrite  <= 1'b0;
+
+      // ACCESS phase
+      @(posedge vif.pclk);
+
+      vif.penable <= 1'b1;
+
+      // Wait until slave completes the transfer
+      while(!vif.pready)
+         @(posedge vif.pclk);
+
+      // Capture read data and error response
+      datac.prdata  = vif.prdata;
+      datac.pslverr = vif.pslverr;
+
+      // Return to IDLE
+      @(posedge vif.pclk);
+
+      vif.psel    <= 1'b0;
+      vif.penable <= 1'b0;
+      vif.pwrite  <= 1'b0;
+
+      $display("[DRV] : READ | ADDR=%0d RDATA=%0d PREADY=%0b PSLVERR=%0b",
+               datac.paddr, datac.prdata, vif.pready, vif.pslverr);
+
+   endtask
+
+   // Random operation
+   task random_transfer();
+
+      // Randomly choose between read and write
+      if($urandom_range(0,1))
+      begin
+         datac.pwrite = 1'b1;
+         write_transfer();
+      end
+      else
+      begin
+         datac.pwrite = 1'b0;
+         read_transfer();
+      end
+
+   endtask
+
+   // Error operation
+   task error_transfer();
+
+      // SETUP phase
+      @(posedge vif.pclk);
+
+      vif.psel    <= 1'b1;
+      vif.penable <= 1'b0;
+
+      // Generate an invalid address
+      vif.paddr   <= $urandom_range(32,100);
+      vif.pwdata  <= datac.pwdata;
+      vif.pwrite  <= datac.pwrite;
+
+      // ACCESS phase
+      @(posedge vif.pclk);
+
+      vif.penable <= 1'b1;
+
+      // Wait until slave completes the transfer
+      while(!vif.pready)
+         @(posedge vif.pclk);
+
+      // Capture slave error response
+      datac.pslverr = vif.pslverr;
+
+      // Return to IDLE
+      @(posedge vif.pclk);
+
+      vif.psel    <= 1'b0;
+      vif.penable <= 1'b0;
+      vif.pwrite  <= 1'b0;
+
+      $display("[DRV] : ERROR | PREADY=%0b PSLVERR=%0b",
+               vif.pready, vif.pslverr);
+
+   endtask
+
+   // Driver run task
    task run();
 
-     forever begin
+      forever
+      begin
 
-       // Get transaction from generator mailbox.
-       mbx.get(datac);
+         // Get transaction from generator
+         mbx.get(datac);
 
+         // Select operation based on transaction type
+         case(datac.oper)
 
-       // ------------------------------------------------------
-       // WRITE OPERATION
-       // ------------------------------------------------------
-       if(datac.oper == 0)
-       begin
+            // Normal write
+            write:
+               write_transfer();
 
-         @(posedge vif.pclk);
+            // Normal read
+            read:
+               read_transfer();
 
-         // APB SETUP phase.
-         vif.psel    <= 1'b1;
-         vif.penable <= 1'b0;
-         vif.pwdata  <= datac.pwdata;
-         vif.paddr   <= datac.paddr;
-         vif.pwrite  <= 1'b1;
+            // Randomly select read or write
+            random:
+               random_transfer();
 
-         @(posedge vif.pclk);
+            // Generate error transaction
+            error:
+               error_transfer();
 
-         // APB ACCESS phase.
-         vif.penable <= 1'b1;
+            default:
+               $error("[DRV] : Unknown operation");
 
-         repeat(2) @(posedge vif.pclk);
+         endcase
 
-         // Return signals to idle state.
-         vif.psel    <= 1'b0;
-         vif.penable <= 1'b0;
-         vif.pwrite  <= 1'b0;
+         // Notify generator that driver completed the transaction
+         ->nextdrv;
 
-         $display("[DRV] : DATA WRITE OP data : %0d and addr : %0d",
-                  datac.pwdata, datac.paddr);
-
-       end
-
-
-       // ------------------------------------------------------
-       // READ OPERATION
-       // ------------------------------------------------------
-       else if(datac.oper == 1)
-       begin
-
-         @(posedge vif.pclk);
-
-         // APB SETUP phase.
-         vif.psel    <= 1'b1;
-         vif.penable <= 1'b0;
-         vif.pwdata  <= datac.pwdata;
-         vif.paddr   <= datac.paddr;
-         vif.pwrite  <= 1'b0;
-
-         @(posedge vif.pclk);
-
-         // APB ACCESS phase.
-         vif.penable <= 1'b1;
-
-         repeat(2) @(posedge vif.pclk);
-
-         // Return signals to idle state.
-         vif.psel    <= 1'b0;
-         vif.penable <= 1'b0;
-         vif.pwrite  <= 1'b0;
-
-         $display("[DRV] : DATA READ OP addr : %0d", datac.paddr);
-
-       end
-
-
-       // ------------------------------------------------------
-       // RANDOM OPERATION
-       // ------------------------------------------------------
-       else if(datac.oper == 2)
-       begin
-
-         @(posedge vif.pclk);
-
-         // Drive randomized APB control/data signals.
-         vif.psel    <= 1;
-         vif.penable <= 0;
-         vif.pwdata  <= datac.pwdata;
-         vif.paddr   <= datac.paddr;
-         vif.pwrite  <= datac.pwrite;
-
-         @(posedge vif.pclk);
-
-         // ACCESS phase.
-         vif.penable <= 1;
-
-         repeat(2) @(posedge vif.pclk);
-
-         // Return to idle state.
-         vif.psel    <= 1'b0;
-         vif.penable <= 1'b0;
-         vif.pwrite  <= 1'b0;
-
-         $display("[DRV] : RANDOM OPERATION");
-
-       end
-
-
-       // ------------------------------------------------------
-       // SLAVE ERROR OPERATION
-       // ------------------------------------------------------
-       else if(datac.oper == 3)
-       begin
-
-         @(posedge vif.pclk);
-
-         // Start APB transfer.
-         vif.psel    <= 1;
-         vif.penable <= 0;
-         vif.pwdata  <= datac.pwdata;
-
-         // Generate an address outside the valid range
-         // to intentionally trigger a slave error.
-         vif.paddr   <= $urandom_range(32,100);
-
-         vif.pwrite  <= datac.pwrite;
-
-         @(posedge vif.pclk);
-
-         // ACCESS phase.
-         vif.penable <= 1;
-
-         repeat(2) @(posedge vif.pclk);
-
-         // Return to idle state.
-         vif.psel    <= 1'b0;
-         vif.penable <= 1'b0;
-         vif.pwrite  <= 1'b0;
-
-         $display("[DRV] : SLV ERROR");
-
-       end
-
-
-       // Notify generator that driver completed the transaction.
-       ->nextdrv;
-
-     end
+      end
 
    endtask
 
 endclass
-
