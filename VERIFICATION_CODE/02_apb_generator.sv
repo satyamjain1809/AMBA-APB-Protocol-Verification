@@ -1,66 +1,61 @@
-
-
 // ============================================================
 // GENERATOR
-// Generates randomized transactions and sends them to the driver.
+// Generates randomized transaction-level stimulus.
 // ============================================================
+
 class generator;
 
-   // Transaction object used for generating stimulus.
-   transaction tr;
+  // Transaction object
+  transaction tr;
 
-   // Mailbox used to transfer transactions from generator to driver.
-   mailbox #(transaction) mbx;
+  // Mailbox for generator -> driver communication
+  mailbox #(transaction) mbx;
 
-   // Number of transactions to generate.
-   int count = 0;
+  // Number of transactions
+  int count = 0;
 
-   // Synchronization event between generator and driver.
-   event nextdrv;
+  // Synchronization with driver
+  event nextdrv;
 
-   // Synchronization event between generator and scoreboard.
-   event nextsco;
+  // Synchronization with scoreboard
+  event nextsco;
 
-   // Indicates that transaction generation is complete.
-   event done;
+  // Indicates generation is complete
+  event done;
 
+  // CONSTRUCTOR
+  function new(mailbox #(transaction) mbx);
 
-   // Constructor.
-   function new(mailbox #(transaction) mbx);
-       this.mbx = mbx;
-       tr = new();
-   endfunction;
+    this.mbx = mbx;
+    tr = new();
 
+  endfunction
 
-   // Generates transactions and synchronizes with
-   // driver and scoreboard.
-   task run();
+  // RUN TASK
+  task run();
+    repeat(count)
+    begin
 
-     repeat(count)
-     begin
+      // Generate transaction-level stimulus
+      assert(tr.randomize())
+      else $error("[GEN] : Randomization failed");
 
-       // Randomize the transaction.
-       assert(tr.randomize())
-       else $error("Randomization failed");
+      // --------------------------------------------------------
+      // Send independent copy to driver
+      // --------------------------------------------------------
+      mbx.put(tr.copy());
 
-       // Send a copy of the transaction to the driver.
-       mbx.put(tr.copy);
+      // Display generated transaction
+      tr.display("GEN");
 
-       // Display generated transaction.
-       tr.display("GEN");
+      // Wait for driver to complete transaction
+      @(nextdrv);
 
-       // Wait until driver completes the operation.
-       @(nextdrv);
+      // Wait for scoreboard
+      @(nextsco);
+    end
 
-       // Wait until scoreboard completes checking.
-       @(nextsco);
-
-     end
-
-     // Indicate that all transactions are generated.
-     ->done;
-
-   endtask
-
+    // All transactions generated
+    ->done;
+  endtask
 endclass
-
